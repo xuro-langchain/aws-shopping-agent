@@ -1,28 +1,11 @@
-from agents.subagents import invoice_subagent
 from langchain.tools import tool, ToolRuntime
 from agents.utils import db
 
-
 # ------------------------------------------------------------
-# Supervisor Tools
+# Opensearch E-commerce Agent Tools
 # ------------------------------------------------------------
 
-@tool(
-    name_or_callable="invoice_subagent",
-    description="""An agent that can assistant with all invoice-related queries. It can retrieve information about a customers past purchases or invoices."""
-)
-def call_invoice_subagent(runtime: ToolRuntime, query: str):
-    print('made it here')
-    print(f"invoice subagent input: {query}")
-    result = invoice_subagent.invoke({
-        "messages": [{"role": "user", "content": query}],
-        "customer_id": runtime.state.get("customer_id", {})
-    })
-    subagent_response = result["messages"][-1].content
-    return subagent_response
-
-# TODO: Add Opensearch E-commerce Agent as tool
-
+# TODO: Add Opensearch MCP tools
 
 # ------------------------------------------------------------
 # Invoice Subagent Tools
@@ -93,8 +76,3 @@ def get_employee_by_invoice_and_customer(runtime: ToolRuntime, invoice_id: int) 
 
 invoice_tools = [get_invoices_by_customer_sorted_by_date, get_invoices_sorted_by_unit_price, get_employee_by_invoice_and_customer]
 
-# ------------------------------------------------------------
-# Opensearch E-commerce Agent Tools
-# ------------------------------------------------------------
-
-# TODO: Add Opensearch MCP tools

@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 
 from langchain.messages import SystemMessage, HumanMessage, AIMessage
 from langchain.agents import create_agent
+from langchain.tools import tool, ToolRuntime
 
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import AnyMessage, add_messages
@@ -11,14 +12,12 @@ from langgraph.managed.is_last_step import RemainingSteps
 from langgraph.store.base import BaseStore
 from langgraph.types import interrupt
 
+from agents.subagents import invoice_subagent
 from agents.prompts import (
     supervisor_system_prompt,
     extract_customer_info_prompt,
     verify_customer_info_prompt,
     create_memory_prompt
-)
-from agents.tools import (
-    call_invoice_subagent
 )
 from agents.utils import (
     llm, 
@@ -36,12 +35,27 @@ class InputState(TypedDict):
 class State(InputState):
     customer_id: NotRequired[str]
     loaded_memory: NotRequired[str]
-    remaining_steps: NotRequired[RemainingSteps]
 
 
 # ------------------------------------------------------------
 # Supervisor Graph
 # ------------------------------------------------------------
+@tool(
+    name_or_callable="invoice_subagent",
+    description="""An agent that can assistant with all invoice-related queries. It can retrieve information about a customers past purchases or invoices."""
+)
+def call_invoice_subagent(runtime: ToolRuntime, query: str):
+    print('made it here')
+    print(f"invoice subagent input: {query}")
+    result = invoice_subagent.invoke({
+        "messages": [{"role": "user", "content": query}],
+        "customer_id": runtime.state.get("customer_id", {})
+    })
+    subagent_response = result["messages"][-1].content
+    return subagent_response
+
+# TODO: Add Opensearch E-commerce Agent as tool
+
 supervisor = create_agent(
     model="openai:gpt-4o", 
     tools=[call_invoice_subagent], # TODO: Add Opensearch E-commerce Agent as tool
