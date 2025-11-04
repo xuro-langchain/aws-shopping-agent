@@ -1,22 +1,32 @@
-from agents.utils import llm, get_engine_for_chinook_db
-from langchain_community.utilities.sql_database import SQLDatabase
-from typing_extensions import TypedDict
-from typing import Annotated, NotRequired
-from langgraph.graph.message import AnyMessage, add_messages
-from langgraph.managed.is_last_step import RemainingSteps
-from langchain.agents import create_agent
+from agents.subagents import invoice_subagent
 from langchain.tools import tool, ToolRuntime
+from agents.utils import db
 
-engine = get_engine_for_chinook_db()
-db = SQLDatabase(engine)
 
-class InputState(TypedDict):
-    messages: Annotated[list[AnyMessage], add_messages]
+# ------------------------------------------------------------
+# Supervisor Tools
+# ------------------------------------------------------------
 
-class State(InputState):
-    customer_id: NotRequired[int]
-    loaded_memory: NotRequired[str]
+@tool(
+    name_or_callable="invoice_subagent",
+    description="""An agent that can assistant with all invoice-related queries. It can retrieve information about a customers past purchases or invoices."""
+)
+def call_invoice_subagent(runtime: ToolRuntime, query: str):
+    print('made it here')
+    print(f"invoice subagent input: {query}")
+    result = invoice_subagent.invoke({
+        "messages": [{"role": "user", "content": query}],
+        "customer_id": runtime.state.get("customer_id", {})
+    })
+    subagent_response = result["messages"][-1].content
+    return subagent_response
 
+# TODO: Add Opensearch E-commerce Agent as tool
+
+
+# ------------------------------------------------------------
+# Invoice Subagent Tools
+# ------------------------------------------------------------
 @tool 
 def get_invoices_by_customer_sorted_by_date(runtime: ToolRuntime) -> list[dict]:
     """
@@ -83,23 +93,8 @@ def get_employee_by_invoice_and_customer(runtime: ToolRuntime, invoice_id: int) 
 
 invoice_tools = [get_invoices_by_customer_sorted_by_date, get_invoices_sorted_by_unit_price, get_employee_by_invoice_and_customer]
 
-invoice_subagent_prompt = """
-    You are a subagent among a team of assistants. You are specialized for retrieving and processing invoice information. You are routed for invoice-related portion of the questions, so only respond to them.. 
+# ------------------------------------------------------------
+# Opensearch E-commerce Agent Tools
+# ------------------------------------------------------------
 
-    You have access to three tools. These tools enable you to retrieve and process invoice information from the database. Here are the tools:
-    - get_invoices_by_customer_sorted_by_date: This tool retrieves all invoices for a customer, sorted by invoice date.
-    - get_invoices_sorted_by_unit_price: This tool retrieves all invoices for a customer, sorted by unit price.
-    - get_employee_by_invoice_and_customer: This tool retrieves the employee information associated with an invoice and a customer.
-    
-    If you are unable to retrieve the invoice information, inform the customer you are unable to retrieve the information, and ask if they would like to search for something else.
-    
-    CORE RESPONSIBILITIES:
-    - Retrieve and process invoice information from the database
-    - Provide detailed information about invoices, including customer details, invoice dates, total amounts, employees associated with the invoice, etc. when the customer asks for it.
-    - Always maintain a professional, friendly, and patient demeanor
-    
-    You may have additional context that you should use to help answer the customer's query. It will be provided to you below:
-    """
-
-# Define the subagent 
-graph = create_agent(llm, tools=invoice_tools, name="invoice_information_subagent", system_prompt=invoice_subagent_prompt, state_schema=State)
+# TODO: Add Opensearch MCP tools
